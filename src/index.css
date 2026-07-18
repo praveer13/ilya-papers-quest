@@ -1,0 +1,157 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* NINETY PERCENT design tokens */
+    --void: #07070D;
+    --abyss: #0C0C16;
+    --surface: #12121F;
+    --surface-2: #1A1A2C;
+    --line: #24243A;
+    --txt: #E8EAF4;
+    --txt-dim: #9AA1B8;
+    --txt-faint: #5B6178;
+    --xp: #FBBF24;
+    --success: #34D399;
+    --danger: #FB7185;
+    --focus: #7DD3FC;
+    --t1: #22D3EE;
+    --t2: #A78BFA;
+    --t3: #4ADE80;
+    --t4: #FB923C;
+    --t5: #F472B6;
+
+    /* shadcn semantic tokens — dark-only site */
+    --background: 240 30% 4%;
+    --foreground: 229 33% 93%;
+    --card: 240 28% 10%;
+    --card-foreground: 229 33% 93%;
+    --popover: 240 24% 12%;
+    --popover-foreground: 229 33% 93%;
+    --primary: 187 85% 55%;
+    --primary-foreground: 240 30% 6%;
+    --secondary: 240 20% 14%;
+    --secondary-foreground: 229 33% 93%;
+    --muted: 240 20% 14%;
+    --muted-foreground: 232 15% 59%;
+    --accent: 240 20% 16%;
+    --accent-foreground: 229 33% 93%;
+    --destructive: 351 95% 71%;
+    --destructive-foreground: 240 30% 6%;
+    --border: 240 14% 18%;
+    --input: 240 14% 18%;
+    --ring: 199 89% 70%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-void text-txt font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  ::selection {
+    background: rgba(34, 211, 238, 0.28);
+    color: #E8EAF4;
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  /* dark scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--void);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--line);
+    border-radius: 8px;
+    border: 2px solid var(--void);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #33334f;
+  }
+}
+
+@layer components {
+  /* HUD label: 13px mono 500, +0.14em uppercase */
+  .hud-label {
+    @apply font-mono text-[13px] font-medium uppercase;
+    letter-spacing: 0.14em;
+  }
+  /* micro caption: 12px mono 400, +0.08em uppercase */
+  .micro-label {
+    @apply font-mono text-[12px] font-normal uppercase;
+    letter-spacing: 0.08em;
+  }
+  /* stat numeral: mono 700 tabular */
+  .stat-numeral {
+    @apply font-mono font-bold;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  /* 1px engineering grid at 32px pitch */
+  .grid-texture {
+    background-image:
+      linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  /* CRT scanline overlay (hero & boss screens only) */
+  .scanlines {
+    background-image: repeating-linear-gradient(
+      0deg,
+      transparent 0 3px,
+      rgba(0, 0, 0, 0.12) 3px 4px
+    );
+  }
+  /* subtle vignette */
+  .vignette {
+    background: radial-gradient(
+      ellipse at center,
+      transparent 45%,
+      rgba(4, 4, 9, 0.55) 100%
+    );
+  }
+  /* panel base: surface + border + inner top highlight */
+  .panel {
+    @apply rounded-xl border border-line bg-surface;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+  .panel-2 {
+    @apply rounded-xl border border-line bg-surface-2;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+  /* neon text glows (use sparingly) */
+  .text-glow-cyan {
+    text-shadow: 0 0 18px rgba(34, 211, 238, 0.55);
+  }
+  .text-glow-gold {
+    text-shadow: 0 0 18px rgba(251, 191, 36, 0.5);
+  }
+  /* hero headline chars: hover micro-jiggle (after GSAP clears inline props) */
+  .hero-char {
+    display: inline-block;
+    transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .hero-char:hover {
+    transform: rotate(2deg) translateY(-2px);
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: "Chakra Petch", ui-sans-serif, sans-serif;
+  }
+}
