@@ -21,6 +21,7 @@ import ProgressRail from './paper/ProgressRail';
 import CodeBlock from './paper/CodeBlock';
 import EquationBlock from './paper/EquationBlock';
 import Diagram from './paper/Diagram';
+import RNNDeepDive from './paper/RNNDeepDive';
 import DemoFrame from './paper/DemoFrame';
 import CharRnnDeepDive from './paper/CharRnnDeepDive';
 import QuizEngine from './paper/QuizEngine';
@@ -239,6 +240,19 @@ export default function Paper() {
                 <Diagram spec={content.mechanism.diagram} color={color} caption={content.mechanism.caption} />
               </div>
             </LevelSection>
+
+            {meta.slug === 'char-rnn' && (
+              <section className="scroll-mt-24">
+                <div className="mb-4">
+                  <span className="hud-label text-txt-faint">interactive walkthrough</span>
+                  <h3 className="mt-1 font-display text-[18px] text-txt">the char-RNN algorithm from scratch</h3>
+                  <p className="mt-2 text-[13px] text-txt-dim">
+                    Step through the exact algorithm: what h is, how it updates, teacher forcing vs generation, and why tanh matters.
+                  </p>
+                </div>
+                <RNNDeepDive color={color} />
+              </section>
+            )}
 
             <LevelSection slug={meta.slug} id="lab" index={4} color={color} read={sectionsRead.includes('lab')}>
               <LabBody slug={meta.slug} content={content} color={color} labDone={labDone} />
