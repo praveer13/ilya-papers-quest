@@ -22,6 +22,7 @@ import CodeBlock from './paper/CodeBlock';
 import EquationBlock from './paper/EquationBlock';
 import Diagram from './paper/Diagram';
 import DemoFrame from './paper/DemoFrame';
+import CharRnnDeepDive from './paper/CharRnnDeepDive';
 import QuizEngine from './paper/QuizEngine';
 import { getLab } from './paper/labs';
 import { cn } from '@/lib/utils';
@@ -220,6 +221,7 @@ export default function Paper() {
                   <p key={i} className="text-[16.5px] leading-[1.75] text-txt-dim">{p}</p>
                 ))}
                 <CodeBlock code={content.eliEngineer.code.snippet} lang={content.eliEngineer.code.lang} file={content.eliEngineer.code.file} />
+                {meta.slug === 'char-rnn' && <CharRnnDeepDive color={color} />}
               </div>
             </LevelSection>
 

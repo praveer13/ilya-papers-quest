@@ -24,26 +24,43 @@ export const track1Papers: PaperContent[] = [
     eliEngineer: {
       prose: [
         'Think of an RNN as a `while` loop that carries one piece of mutable state — the hidden vector h — between iterations. Each step it reads one character, updates h, and emits a probability distribution over what comes next. h is the model\'s entire memory: a lossy accumulator of everything it has seen so far.',
-        'Training uses "teacher forcing": instead of feeding the model its own guesses, you feed it the real previous character and ask it to predict the real next one — a standard supervised classification problem at every position, unrolled through time.',
-        'Generation is the reverse: give it a seed character, sample from its output distribution (don\'t just take the argmax — that loops forever), feed the sample back in, repeat. A `temperature` dial rescales the distribution: low temp plays it safe and repetitive, high temp gets creative and sloppy.',
+        'The exact goal is to learn P(next character | every character seen so far). Take a real slice such as `hello`. It creates four supervised cases at once: read `h`, label `e`; read `e` after `h`, label `l`; read the first `l` after `he`, label the second `l`; read the second `l` after `hel`, label `o`. The model is rewarded when it assigns high probability to each real label.',
+        'Teacher forcing names where the training inputs come from: at step t, x_t is the real character c_t from the dataset, and the label is the real next character c_{t+1}. The model still predicts before seeing that label. Its guess is used to compute cross-entropy, but its guessed character is not fed into the next training step; the next real character is. That gives a clean supervised signal at every position and evaluates the exact next-character likelihood of the observed text.',
+        'One training update has two passes. First run left-to-right, caching each hidden state, output distribution, and per-position loss. Then backpropagation through time (BPTT) walks that recorded computation right-to-left, using the chain rule to accumulate gradients for the same shared matrices at every position. Finally SGD or Adam changes the weights once. Long corpora are split into windows, shuffled or traversed repeatedly, and revisited over many epochs. There is no special replay buffer: “replay” usually just means rerunning a window or this page\'s animation.',
+        'Generation is not training in reverse; it is the same forward recurrence with the targets, loss, backward pass, and optimizer removed. Run the prompt through the RNN to initialize h, sample one next character from p, feed that sampled character back in, update h, and repeat. Because future real characters are unknown, the model is now free-running on its own outputs.',
+        'Argmax always chooses the highest-probability character. It is deterministic and can fall into repetitive cycles, although it does not literally loop for every model. Sampling chooses according to the full distribution, so likely characters remain common while plausible alternatives sometimes break a cycle. A `temperature` T divides the logits before softmax: T<1 sharpens the probabilities, T=1 leaves them unchanged, and T>1 flattens them. Temperature changes decoding randomness, not what the network learned.',
       ],
       code: {
         lang: 'python',
         file: 'char_rnn.py',
-        snippet: `# an RNN is a while loop with memory
-h = zeros(HIDDEN)                    # hidden state = the only memory
-for ch in text:                      # teacher forcing: real char in
-    h = tanh(W_xh @ onehot(ch) + W_hh @ h + b)
-    logits = W_hy @ h                # scores over the whole alphabet
-    loss += cross_entropy(logits, next_char)
+        snippet: `# TRAIN ONE TEXT WINDOW c[0:L+1]
+h = zeros(HIDDEN)
+loss = 0
+cache = []
+for t in range(L):
+    x = onehot(c[t])                        # real current character
+    y = index(c[t + 1])                     # real next-character label
+    a = W_xh @ x + W_hh @ h + b_h          # raw state update
+    h = tanh(a)                             # bounded, signed memory
+    z = W_hy @ h + b_y                      # logits: one score / character
+    p = softmax(z)                          # training uses T = 1
+    loss += -log(p[y])                      # cross-entropy for this position
+    cache.append((x, a, h, p, y))           # needed by chain rule
 
-# generation: sample, feed back, repeat
-ch = seed
+grads = backprop_through_time(cache)         # walk cached steps right → left
+optimizer.step([W_xh, W_hh, W_hy, b_h, b_y], grads)
+
+# GENERATE: forward only; no labels, loss, gradients, or weight updates
+h = zeros(HIDDEN)
+for ch in prompt:                           # warm up state on the real prompt
+    h = tanh(W_xh @ onehot(ch) + W_hh @ h + b_h)
+
 for _ in range(500):
-    h = tanh(W_xh @ onehot(ch) + W_hh @ h + b)
-    p = softmax((W_hy @ h) / temperature)   # <1 confident, >1 chaotic
-    ch = sample(p)                          # not argmax! argmax loops
-    yield ch`,
+    z = W_hy @ h + b_y
+    p = softmax(z / temperature)
+    ch = sample(p)                          # draw, do not always take argmax
+    yield ch
+    h = tanh(W_xh @ onehot(ch) + W_hh @ h + b_h)`,
       },
     },
     intuitions: [
@@ -68,34 +85,46 @@ for _ in range(500):
       },
     ],
     mechanism: {
-      latex: 'h_t = \\tanh(W_{hh}\\, h_{t-1} + W_{xh}\\, x_t + b), \\qquad p_t = \\mathrm{softmax}(W_{hy}\\, h_t / T)',
+      latex: '\\begin{aligned} a_t &= W_{xh}x_t + W_{hh}h_{t-1} + b_h \\\\ h_t &= \\tanh(a_t) \\\\ z_t &= W_{hy}h_t + b_y \\\\ p_t &= \\operatorname{softmax}(z_t) \\\\ \\mathcal L &= -\\sum_t \\log p_t[y_t] \\\\ p_t^{(T)} &= \\operatorname{softmax}(z_t/T) \\quad \\text{(generation only)} \\end{aligned}',
       terms: [
-        { symbol: 'h_t', meaning: 'hidden state at step t — the model\'s entire memory, a fixed-size vector' },
-        { symbol: 'x_t', meaning: 'one-hot input character at step t' },
-        { symbol: 'W_{hh}', meaning: 'recurrent weights — how memory transforms itself each step' },
-        { symbol: 'W_{xh}', meaning: 'input weights — how the new character writes into memory' },
-        { symbol: '\\tanh', meaning: 'squashes the state into (-1, 1); keeps values bounded' },
-        { symbol: 'p_t', meaning: 'probability distribution over the next character' },
-        { symbol: 'T', meaning: 'temperature — divides logits before softmax to tune randomness' },
+        { symbol: 'x_t', meaning: 'one-hot vector for the character read at position t' },
+        { symbol: 'a_t', meaning: 'raw pre-activation: input evidence plus transformed previous memory and a bias' },
+        { symbol: 'h_t', meaning: 'new hidden vector; every coordinate is between −1 and 1 after tanh' },
+        { symbol: 'W_{xh}', meaning: 'learned input matrix: how each character writes into hidden state' },
+        { symbol: 'W_{hh}', meaning: 'learned recurrent matrix: how the previous hidden state affects the next one' },
+        { symbol: 'z_t', meaning: 'logits — unrestricted scores over the whole character vocabulary' },
+        { symbol: 'p_t', meaning: 'softmax turns logits into non-negative probabilities that sum to 1' },
+        { symbol: 'y_t', meaning: 'index of the real next character during training: y_t = c_{t+1}' },
+        { symbol: '\\mathcal L', meaning: 'negative log-likelihood / cross-entropy summed across the text window' },
+        { symbol: 'T', meaning: 'generation-time temperature; rescales logits before sampling but does not retrain weights' },
       ],
       diagram: {
-        height: 46,
+        height: 54,
         nodes: [
-          { id: 'x1', x: 16, y: 36, label: 'x_t', sub: 'one-hot character in', kind: 'io' },
-          { id: 'c1', x: 40, y: 24, label: 'RNN cell', sub: 'tanh(W_hh·h + W_xh·x + b)', kind: 'box', w: 22 },
-          { id: 'h1', x: 40, y: 8, label: 'h_t', sub: 'hidden state carried forward', kind: 'mem' },
-          { id: 'y1', x: 68, y: 24, label: 'softmax', sub: 'p(next char) over alphabet', kind: 'box', w: 18 },
-          { id: 'out', x: 88, y: 36, label: 'sample', sub: 'draw the next character', kind: 'io' },
+          { id: 'x', x: 10, y: 30, label: 'x_t', sub: 'one-hot real character in training; prior sample in generation', kind: 'io', w: 13 },
+          { id: 'hprev', x: 27, y: 9, label: 'h_{t−1}', sub: 'prefix memory from the previous step', kind: 'mem', w: 16 },
+          { id: 'cell', x: 30, y: 30, label: 'tanh cell', sub: 'a_t = W_xh x_t + W_hh h_prev + b; h_t = tanh(a_t)', kind: 'box', w: 21 },
+          { id: 'h', x: 48, y: 9, label: 'h_t', sub: 'cached for BPTT and carried to the next time step', kind: 'mem', w: 14 },
+          { id: 'logits', x: 55, y: 30, label: 'logits z_t', sub: 'one unrestricted score per possible next character', kind: 'box', w: 18 },
+          { id: 'prob', x: 77, y: 30, label: 'softmax p_t', sub: 'probabilities over the next character', kind: 'box', w: 19 },
+          { id: 'target', x: 55, y: 47, label: 'real y_t', sub: 'dataset next character; training only', kind: 'io', w: 15 },
+          { id: 'loss', x: 77, y: 47, label: '−log p[y]', sub: 'per-position training loss; gradients flow backward', kind: 'op', w: 18 },
+          { id: 'sample', x: 93, y: 12, label: 'sample', sub: 'generation only: draw a character and feed it back', kind: 'io', w: 13 },
         ],
         edges: [
-          { from: 'x1', to: 'c1', label: 'char' },
-          { from: 'c1', to: 'h1', label: 'h_t → next step' },
-          { from: 'c1', to: 'y1' },
-          { from: 'y1', to: 'out', label: 'p' },
-          { from: 'out', to: 'x1', label: 'feed back', dashed: true },
+          { from: 'x', to: 'cell', label: 'input' },
+          { from: 'hprev', to: 'cell', label: 'memory' },
+          { from: 'cell', to: 'h', label: 'carry' },
+          { from: 'cell', to: 'logits' },
+          { from: 'logits', to: 'prob' },
+          { from: 'prob', to: 'loss', label: 'prediction' },
+          { from: 'target', to: 'loss', label: 'label' },
+          { from: 'prob', to: 'sample', label: 'draw', dashed: true },
+          { from: 'sample', to: 'x', label: 'next input', dashed: true },
+          { from: 'loss', to: 'cell', label: 'BPTT updates shared θ', dashed: true },
         ],
       },
-      caption: 'One recurrent cell, unrolled: character in → hidden state update → next-character distribution → sample feeds back as the next input.',
+      caption: 'Training uses the solid dataset path and a loss; BPTT follows the loss backward into the shared cell weights. Generation removes the target/loss and uses the dashed sample-feedback path. “Unrolling” draws repeated uses of this one shared cell across time—it does not create different weights per position.',
     },
     lab: {
       name: 'temperature sampling toy',
@@ -104,8 +133,8 @@ for _ in range(500):
     },
     bugs: [
       {
-        title: 'argmax decoding "should" be best — it just loops forever',
-        fix: 'greedy decoding picks the single most likely next char every step, which collapses into repetitive cycles ("the the the"). sampling from the distribution is what makes generation diverse.',
+        title: 'argmax decoding "should" be best — it often enters cycles',
+        fix: 'greedy decoding picks the single most likely next character at every step. that deterministic state/output loop can become repetitive ("the the the"). sampling preserves likely choices while occasionally taking an alternative; it reduces this failure mode but cannot guarantee good text.',
       },
       {
         title: 'temperature > 1 doesn\'t make the model smarter',
@@ -113,7 +142,7 @@ for _ in range(500):
       },
       {
         title: 'teacher forcing is not "cheating"',
-        fix: 'feeding ground-truth prefixes during training turns sequence learning into per-step classification. exposure bias (train/test mismatch) is real, but for a first model, teacher forcing is the only tractable option.',
+        fix: 'the model predicts before the real next-character label is used. feeding the known real prefix evaluates the exact likelihood factors in the training text and gives a differentiable loss at every position. the real limitation is exposure bias: generation later runs on prefixes containing its own mistakes.',
       },
     ],
     fieldNotes: {
@@ -155,6 +184,45 @@ for _ in range(500):
       },
       {
         type: 'mcq',
+        q: 'For the training slice `hello`, what are the first input and label?',
+        options: [
+          'Input `h`, label `e`',
+          'Input `e`, label `h`',
+          'Input the whole word, label `hello`',
+          'Input a sampled character, with no label',
+        ],
+        answer: 0,
+        why: 'Next-character training shifts the same real sequence by one position: inputs `hell`, labels `ello`.',
+        tag: 'eli-engineer',
+      },
+      {
+        type: 'mcq',
+        q: 'What does backpropagation through time do after the forward pass?',
+        options: [
+          'Walks cached timesteps right-to-left and accumulates gradients for the shared weights',
+          'Feeds sampled characters back until the model writes the training text',
+          'Creates a different set of RNN weights for every position',
+          'Replays the audio pronunciation of every character',
+        ],
+        answer: 0,
+        why: 'Unrolling exposes the repeated computation graph; BPTT applies the chain rule backward through it, summing contributions into the same matrices.',
+        tag: 'mechanism',
+      },
+      {
+        type: 'mcq',
+        q: 'Why is every coordinate of tanh(a) between −1 and 1?',
+        options: [
+          '|e^a − e^(−a)| is always smaller than e^a + e^(−a)',
+          'The optimizer clips tanh after every update',
+          'Softmax normalizes the hidden state',
+          'One-hot inputs can only contain zeros and ones',
+        ],
+        answer: 0,
+        why: 'tanh is a difference of two positive exponentials divided by their sum, so the numerator can never exceed the denominator in magnitude.',
+        tag: 'mechanism',
+      },
+      {
+        type: 'mcq',
         q: 'What does lowering the sampling temperature (T < 1) do?',
         options: [
           'Sharpens the output distribution — safer, more repetitive text',
@@ -170,7 +238,7 @@ for _ in range(500):
         type: 'tf',
         q: 'True or false: greedy (argmax) decoding tends to produce repetitive loops.',
         answer: true,
-        why: 'Argmax is deterministic given the state, so the model falls into cycles like "the the the"; sampling breaks them.',
+        why: 'Argmax is deterministic given the state, so it can fall into cycles like "the the the"; sampling sometimes takes lower-ranked alternatives and can break a cycle.',
         tag: 'bugs',
       },
       {
