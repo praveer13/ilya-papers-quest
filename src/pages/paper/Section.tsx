@@ -1,52 +1,13 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Check } from 'lucide-react';
-import { useSaveStore } from '@/lib/game/save';
 import { cn } from '@/lib/utils';
 
 /**
  * SectionShell — one of the 7 level sections (paper.md §3): mono index header,
- * read-state dot, scroll-margin for the sticky nav, and IntersectionObserver
- * read detection (marks read when the section's end has been in view ≥1.5 s —
- * anti-skim, §4.1: "scroll-to-bottom per section").
+ * read-state dot, scroll-margin for the sticky nav.
  */
 
-export function useSectionRead(slug: string, sectionId: string, index: number) {
-  const ref = useRef<HTMLElement>(null);
-  const fired = useRef(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || fired.current) return;
-    let timer: number | null = null;
-    const io = new IntersectionObserver(
-      () => {
-        const rect = el.getBoundingClientRect();
-        const endInView = rect.bottom <= window.innerHeight + 8 && rect.bottom > 0;
-        if (endInView && timer == null) {
-          timer = window.setTimeout(() => {
-            if (!fired.current) {
-              fired.current = true;
-              useSaveStore.getState().markSectionRead(slug, sectionId, index);
-            }
-          }, 1500);
-        } else if (!endInView && timer != null) {
-          window.clearTimeout(timer);
-          timer = null;
-        }
-      },
-      { threshold: [0, 0.2, 0.5] },
-    );
-    io.observe(el);
-    return () => {
-      io.disconnect();
-      if (timer != null) window.clearTimeout(timer);
-    };
-  }, [slug, sectionId, index]);
-
-  return ref;
-}
-
-export function SectionShell({
+export default function SectionShell({
   id,
   index,
   label,
@@ -92,29 +53,4 @@ export function SectionShell({
       {children}
     </section>
   );
-}
-
-/** scrollspy: which section id is currently in the reading zone */
-export function useScrollSpy(ids: string[]): string {
-  const [active, setActive] = useState(ids[0]);
-
-  useEffect(() => {
-    setActive(ids[0]);
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) setActive(e.target.id.replace('sec-', ''));
-        }
-      },
-      { rootMargin: '-25% 0px -65% 0px', threshold: 0 },
-    );
-    for (const id of ids) {
-      const el = document.getElementById(`sec-${id}`);
-      if (el) io.observe(el);
-    }
-    return () => io.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ids.join(',')]);
-
-  return active;
 }

@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { LabBtn, LabSlider, Readout, useTicker, type LabProps } from './shared';
+import { LabBtn, LabSlider, Readout, type LabProps } from './shared';
+import { useTicker } from '@/hooks/useTicker';
 import { cn } from '@/lib/utils';
 
 /**

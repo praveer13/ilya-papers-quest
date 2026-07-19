@@ -46,13 +46,11 @@ function MiniMapSnippet({ color, danger }: { color: string; danger?: boolean }) 
 }
 
 export default function NextObjective() {
-  // subscribe to stable references only; compute the derived objective in a
-  // memo (a selector returning a fresh object would loop re-renders).
-  const papers = useSaveStore((s) => s.papers);
-  const bosses = useSaveStore((s) => s.bosses);
+  // Compute the derived objective once per render; nextObjective reads
+  // from the store directly so no dependency array needed.
   const objective = useMemo(
     () => nextObjective(useSaveStore.getState()),
-    [papers, bosses],
+    [],
   );
 
   if (objective.kind === 'done') {

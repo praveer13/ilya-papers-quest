@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 
@@ -26,60 +26,71 @@ const BRIGHT_RADIUS = 200;
 const CYAN = new THREE.Color('#22D3EE');
 const VIOLET = new THREE.Color('#A78BFA');
 
+interface SimData {
+  base: Float32Array;
+  phase: Float32Array;
+  speed: Float32Array;
+  disp: Float32Array;
+  colors: Float32Array;
+  linePos: Float32Array;
+  lineCol: Float32Array;
+  cur: Float32Array;
+}
+
+function createSimData(): SimData {
+  const w = 1920;
+  const h = 1080;
+  const base = new Float32Array(NODE_COUNT * 3);
+  const phase = new Float32Array(NODE_COUNT);
+  const speed = new Float32Array(NODE_COUNT);
+  const disp = new Float32Array(NODE_COUNT * 2);
+  for (let i = 0; i < NODE_COUNT; i++) {
+    base[i * 3] = (Math.random() - 0.5) * w;
+    base[i * 3 + 1] = (Math.random() - 0.5) * h;
+    base[i * 3 + 2] = 0;
+    phase[i] = Math.random() * Math.PI * 2;
+    speed[i] = 0.35 + Math.random() * 0.5;
+  }
+  const colors = new Float32Array(NODE_COUNT * 3);
+  const tmp = new THREE.Color();
+  for (let i = 0; i < NODE_COUNT; i++) {
+    const t = base[i * 3] / w + 0.5;
+    tmp.copy(CYAN).lerp(VIOLET, THREE.MathUtils.clamp(t, 0, 1));
+    colors[i * 3] = tmp.r;
+    colors[i * 3 + 1] = tmp.g;
+    colors[i * 3 + 2] = tmp.b;
+  }
+  const maxSegs = (NODE_COUNT * (NODE_COUNT - 1)) / 2;
+  return {
+    base,
+    phase,
+    speed,
+    disp,
+    colors,
+    linePos: new Float32Array(maxSegs * 6),
+    lineCol: new Float32Array(maxSegs * 6),
+    cur: new Float32Array(NODE_COUNT * 3),
+  };
+}
+
+// Module-level initialization avoids setState-in-effect and impure hook issues.
+const INITIAL_SIM = createSimData();
+const INITIAL_PG = new THREE.BufferGeometry();
+INITIAL_PG.setAttribute('position', new THREE.BufferAttribute(INITIAL_SIM.cur, 3));
+INITIAL_PG.setAttribute('color', new THREE.BufferAttribute(INITIAL_SIM.colors, 3));
+const INITIAL_LG = new THREE.BufferGeometry();
+INITIAL_LG.setAttribute('position', new THREE.BufferAttribute(INITIAL_SIM.linePos, 3));
+INITIAL_LG.setAttribute('color', new THREE.BufferAttribute(INITIAL_SIM.lineCol, 3));
+
 function ParticleField({ runningRef }: { runningRef: React.RefObject<boolean> }) {
   const viewport = useThree((s) => s.viewport);
   const pointer = useThree((s) => s.pointer);
 
   const pointsRef = useRef<THREE.Points>(null);
   const linesRef = useRef<THREE.LineSegments>(null);
+  const simRef = useRef<SimData>(INITIAL_SIM);
 
-  const sim = useMemo(() => {
-    const w = 1920;
-    const h = 1080;
-    const base = new Float32Array(NODE_COUNT * 3);
-    const phase = new Float32Array(NODE_COUNT);
-    const speed = new Float32Array(NODE_COUNT);
-    const disp = new Float32Array(NODE_COUNT * 2); // repel displacement (lerp decay)
-    for (let i = 0; i < NODE_COUNT; i++) {
-      base[i * 3] = (Math.random() - 0.5) * w;
-      base[i * 3 + 1] = (Math.random() - 0.5) * h;
-      base[i * 3 + 2] = 0;
-      phase[i] = Math.random() * Math.PI * 2;
-      speed[i] = 0.35 + Math.random() * 0.5;
-    }
-    // node colors: cyan → violet by x
-    const colors = new Float32Array(NODE_COUNT * 3);
-    const tmp = new THREE.Color();
-    for (let i = 0; i < NODE_COUNT; i++) {
-      const t = base[i * 3] / w + 0.5;
-      tmp.copy(CYAN).lerp(VIOLET, THREE.MathUtils.clamp(t, 0, 1));
-      colors[i * 3] = tmp.r;
-      colors[i * 3 + 1] = tmp.g;
-      colors[i * 3 + 2] = tmp.b;
-    }
-    // pre-allocate worst-case line buffers
-    const maxSegs = (NODE_COUNT * (NODE_COUNT - 1)) / 2;
-    return {
-      base,
-      phase,
-      speed,
-      disp,
-      colors,
-      linePos: new Float32Array(maxSegs * 6),
-      lineCol: new Float32Array(maxSegs * 6),
-      cur: new Float32Array(NODE_COUNT * 3), // current positions
-    };
-  }, []);
-
-  const geometries = useMemo(() => {
-    const pg = new THREE.BufferGeometry();
-    pg.setAttribute('position', new THREE.BufferAttribute(sim.cur, 3));
-    pg.setAttribute('color', new THREE.BufferAttribute(sim.colors, 3));
-    const lg = new THREE.BufferGeometry();
-    lg.setAttribute('position', new THREE.BufferAttribute(sim.linePos, 3));
-    lg.setAttribute('color', new THREE.BufferAttribute(sim.lineCol, 3));
-    return { pg, lg };
-  }, [sim]);
+  const [geometries] = useState({ pg: INITIAL_PG, lg: INITIAL_LG });
 
   useEffect(() => {
     return () => {
@@ -90,6 +101,9 @@ function ParticleField({ runningRef }: { runningRef: React.RefObject<boolean> })
 
   useFrame(({ clock }) => {
     if (!runningRef.current) return;
+    const sim = simRef.current;
+    const geom = geometries;
+
     const t = clock.getElapsedTime();
     const { base, phase, speed, disp, cur, linePos, lineCol } = sim;
     const w = viewport.width;
@@ -160,10 +174,10 @@ function ParticleField({ runningRef }: { runningRef: React.RefObject<boolean> })
         }
       }
     }
-    geometries.lg.setDrawRange(0, seg * 2);
-    (geometries.pg.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
-    (geometries.lg.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
-    (geometries.lg.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true;
+    geom.lg.setDrawRange(0, seg * 2);
+    (geom.pg.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
+    (geom.lg.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
+    (geom.lg.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true;
   });
 
   return (

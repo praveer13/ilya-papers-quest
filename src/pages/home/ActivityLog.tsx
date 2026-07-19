@@ -80,13 +80,19 @@ export default function ActivityLog() {
     return () => io.disconnect();
   }, [events.length, totalChars]);
 
-  // slice the global typed budget across lines
-  let budget = typedCount;
-  const typedPerLine = events.map((e) => {
-    const t = e.label.slice(0, Math.max(0, Math.min(e.label.length, budget)));
-    budget -= t.length;
-    return t;
-  });
+  // slice the global typed budget across lines (functional, no mutation)
+  const typedPerLine = useMemo(() => {
+    return events.reduce<{ lines: string[]; remaining: number }>(
+      (acc, e) => {
+        const chars = Math.max(0, Math.min(e.label.length, acc.remaining));
+        return {
+          lines: [...acc.lines, e.label.slice(0, chars)],
+          remaining: acc.remaining - chars,
+        };
+      },
+      { lines: [], remaining: typedCount },
+    ).lines;
+  }, [events, typedCount]);
 
   return (
     <section className="bg-void py-24 md:py-32" aria-label="activity log">
@@ -98,47 +104,32 @@ export default function ActivityLog() {
             Every section read, every lab broken, every paper mastered — committed to your local save file like a git
             history of your own brain.
           </p>
-          <Link
-            to="/achievements"
-            className="group mt-6 inline-flex items-center gap-1.5 font-mono text-[13px] lowercase text-t1 transition-colors hover:text-focus"
-          >
-            view all
-            <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
-          </Link>
+          {events.length === 0 ? (
+            <div className="mt-8">
+              <EmptyState message="no commits yet." />
+              <Link
+                to="/paper/01-image-classification-cnn"
+                className="mt-4 inline-flex items-center gap-2 font-mono text-[13px] uppercase tracking-wider text-xp transition-colors hover:text-xp-bright"
+              >
+                start paper 01
+                <ArrowRight className="size-4" />
+              </Link>
+            </div>
+          ) : (
+            <p className="mt-4 font-mono text-[12px] lowercase text-txt-faint">
+              {events.length} event{events.length > 1 ? 's' : ''} · {totalChars} characters
+            </p>
+          )}
         </Reveal>
 
-        <Reveal delay={0.1}>
-          <div ref={panelRef} className="overflow-hidden rounded-xl border border-line bg-surface">
-            {/* terminal chrome */}
-            <div className="flex items-center gap-2 border-b border-line bg-surface-2 px-4 py-2.5">
-              <span className="size-2.5 rounded-full bg-danger/70" />
-              <span className="size-2.5 rounded-full bg-xp/70" />
-              <span className="size-2.5 rounded-full bg-success/70" />
-              <span className="ml-2 font-mono text-[12px] text-txt-faint">git log — brain@localhost</span>
-            </div>
-            <div className="min-h-[220px] p-4 font-mono text-[13px]">
-              {events.length === 0 ? (
-                <EmptyState
-                  message="> log is empty. git commit some knowledge."
-                  cta={
-                    <Link
-                      to="/paper/char-rnn"
-                      className="hud-label rounded-lg bg-t1 px-5 py-2.5 text-void transition-all duration-200 hover:shadow-glow-cyan"
-                    >
-                      start paper 01
-                    </Link>
-                  }
-                />
-              ) : (
-                <div className="flex flex-col">
-                  {events.map((e, i) => (
-                    <LogLine key={`${e.id}-${i}`} event={e} typed={typedPerLine[i]} newest={i === 0} />
-                  ))}
-                </div>
-              )}
-            </div>
+        <div ref={panelRef} className="relative">
+          <div className="absolute inset-0 -z-10 rounded-xl bg-surface ring-1 ring-line" />
+          <div className="max-h-[420px] overflow-auto p-5 font-mono text-[13px]">
+            {events.map((e, i) => (
+              <LogLine key={e.id} event={e} typed={typedPerLine[i] ?? ''} newest={i === 0} />
+            ))}
           </div>
-        </Reveal>
+        </div>
       </div>
     </section>
   );

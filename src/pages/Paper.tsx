@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import React, { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, ChevronDown, Clock, ExternalLink, Lock, Star, Zap } from 'lucide-react';
@@ -14,7 +14,9 @@ import { useReducedMotion } from '@/lib/game/format';
 import { paperContent, SECTION_IDS, SECTION_LABELS } from '@/data/papers';
 import type { PaperContent, SectionId } from '@/data/papers';
 import type { Paper as PaperMeta } from '@/lib/game/papers';
-import { SectionShell, useScrollSpy, useSectionRead } from './paper/Section';
+import { useScrollSpy } from '@/hooks/useScrollSpy';
+import { useSectionRead } from '@/hooks/useSectionRead';
+import SectionShell from './paper/Section';
 import ProgressRail from './paper/ProgressRail';
 import CodeBlock from './paper/CodeBlock';
 import EquationBlock from './paper/EquationBlock';
@@ -57,7 +59,7 @@ export default function Paper() {
   }, [meta, content, unlocked, navigate]);
 
   // session time tracking (flush every 15s + on unmount)
-  const lastFlush = useRef(Date.now());
+  const lastFlush = useRef(0);
   useEffect(() => {
     lastFlush.current = Date.now();
     const iv = window.setInterval(() => {
@@ -439,9 +441,23 @@ function IntuitionCard({ intuition, color, index }: { intuition: PaperContent['i
 // S5 · lab
 // ---------------------------------------------------------------------------
 
+function LabSlot({ slug, resetKey, color }: { slug: string; resetKey: number; color: string }) {
+  const lab = getLab(slug);
+  if (!lab) return null;
+  return (
+    <>
+      {React.createElement(lab, {
+        key: resetKey,
+        color,
+        onComplete: () => useSaveStore.getState().markLabDone(slug),
+      })}
+    </>
+  );
+}
+
 function LabBody({ slug, content, color, labDone }: { slug: string; content: PaperContent; color: string; labDone: boolean }) {
-  const Lab = getLab(slug);
   const [resetKey, setResetKey] = useState(0);
+  const hasLab = getLab(slug) !== undefined;
   return (
     <div className="space-y-3">
       <DemoFrame
@@ -452,8 +468,8 @@ function LabBody({ slug, content, color, labDone }: { slug: string; content: Pap
         done={labDone}
         onReset={() => setResetKey((k) => k + 1)}
       >
-        {Lab ? (
-          <Lab key={resetKey} color={color} onComplete={() => useSaveStore.getState().markLabDone(slug)} />
+        {hasLab ? (
+          <LabSlot slug={slug} resetKey={resetKey} color={color} />
         ) : (
           <div className="flex h-[320px] flex-col items-center justify-center gap-2 font-mono text-[12px] text-txt-faint">
             <span>no lab module registered for this level yet</span>

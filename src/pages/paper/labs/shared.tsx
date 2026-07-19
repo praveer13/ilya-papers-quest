@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -81,17 +81,6 @@ export function LabSlider({
       />
     </label>
   );
-}
-
-/** setInterval-as-a-hook, paused when `delay` is null */
-export function useTicker(cb: () => void, delay: number | null) {
-  const ref = useRef(cb);
-  ref.current = cb;
-  useEffect(() => {
-    if (delay == null) return;
-    const id = setInterval(() => ref.current(), delay);
-    return () => clearInterval(id);
-  }, [delay]);
 }
 
 /** tiny bar chart row (SVG) for log-scale or linear values */

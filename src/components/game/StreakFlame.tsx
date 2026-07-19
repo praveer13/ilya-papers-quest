@@ -23,9 +23,12 @@ export default function StreakFlame({ count, size = 18, className, showCount = t
 
   useEffect(() => {
     if (count > prev.current) {
-      setPulsing(true);
+      const raf = requestAnimationFrame(() => setPulsing(true));
       const t = setTimeout(() => setPulsing(false), 850);
-      return () => clearTimeout(t);
+      return () => {
+        cancelAnimationFrame(raf);
+        clearTimeout(t);
+      };
     }
     prev.current = count;
   }, [count]);

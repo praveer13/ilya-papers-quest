@@ -99,15 +99,19 @@ export default function QuizEngine({
   }, [content.quiz, attempts]);
 
   // per-question setup: shuffle order items / fill tokens
+  // Defer state reset to avoid cascading renders (setState in effect body).
   useEffect(() => {
     if (!q) return;
     answeredRef.current = false;
-    setAnswered(false);
-    setPicked(null);
-    setOrderSeq([]);
-    setFillSeq([]);
-    if (q.type === 'order') setDisplayOrder(shuffle(q.items.map((_, i) => i)));
-    if (q.type === 'fill') setDisplayTokens(shuffle(q.tokens));
+    const handle = requestAnimationFrame(() => {
+      setAnswered(false);
+      setPicked(null);
+      setOrderSeq([]);
+      setFillSeq([]);
+      if (q.type === 'order') setDisplayOrder(shuffle(q.items.map((_, i) => i)));
+      if (q.type === 'fill') setDisplayTokens(shuffle(q.tokens));
+    });
+    return () => cancelAnimationFrame(handle);
   }, [q]);
 
   const blankCount = q?.type === 'fill' ? (q.q.split('___').length - 1 || 1) : 0;

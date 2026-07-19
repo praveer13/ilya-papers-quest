@@ -25,8 +25,9 @@ export default function CountUp({ value, duration = 900, className, format = for
     if (!when) return;
     const from = fromRef.current;
     if (from === value) {
-      setShown(value);
-      return;
+      // Defer to avoid setState-in-effect warning
+      const raf = requestAnimationFrame(() => setShown(value));
+      return () => cancelAnimationFrame(raf);
     }
     const t0 = performance.now();
     const tick = (now: number) => {
