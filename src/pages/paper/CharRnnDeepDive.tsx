@@ -10,6 +10,8 @@ const TRAIN_CHARS = ['h', 'e', 'l', 'l', 'o'];
 const SAMPLE_PATH = ['h', 'e', 'l', 'l', 'o', '\n'];
 const TEMPERATURE_LOGITS = [2.4, 1.2, 0.4, -0.2];
 const TEMPERATURE_LABELS = ['e', 'a', 'space', 'x'];
+const PRIMER_LABELS = ['h', 'e', 'l', 'o'];
+const PRIMER_LOGITS = [0.2, 2.0, 0.8, -0.4];
 
 function softmax(logits: number[], temperature: number): number[] {
   const scaled = logits.map((value) => value / temperature);
@@ -21,6 +23,131 @@ function softmax(logits: number[], temperature: number): number[] {
 
 function charLabel(char: string): string {
   return char === '\n' ? '↵' : char;
+}
+
+function VocabularyPrimer({ color }: { color: string }) {
+  const probabilities = softmax(PRIMER_LOGITS, 1);
+  const targetIndex = 1;
+  const loss = -Math.log(probabilities[targetIndex]);
+  const outputError = probabilities.map((probability, index) => probability - (index === targetIndex ? 1 : 0));
+  const terms = [
+    {
+      name: 'vector',
+      plain: 'A fixed-length list of numbers. The hidden state h is a vector: for example [0.2, −0.7, 0.1].',
+    },
+    {
+      name: 'one-hot',
+      plain: 'A way to name one item with numbers. For alphabet [h,e,l,o], h becomes [1,0,0,0] and e becomes [0,1,0,0].',
+    },
+    {
+      name: 'matrix / weights',
+      plain: 'A table of adjustable numbers. Multiplying by it makes weighted sums. Training changes these numbers; they are the model’s learned memory rules.',
+    },
+    {
+      name: 'hidden state h',
+      plain: 'The RNN’s running memory vector. It is recalculated after each character and carried into the next step.',
+    },
+    {
+      name: 'logits',
+      plain: 'Raw preference scores for the possible outputs. They may be negative and do not need to add to 1, so they are not probabilities yet.',
+    },
+    {
+      name: 'softmax',
+      plain: 'A conversion from logits to probabilities: make every score positive, then divide by the total so all chances add to 100%.',
+    },
+    {
+      name: 'loss',
+      plain: 'One number measuring how wrong the prediction was. High probability on the real answer gives a small loss; low probability gives a large loss.',
+    },
+    {
+      name: 'gradient',
+      plain: 'For each weight, the local slope: “if this weight rises a tiny amount, which way and how much does the loss move?”',
+    },
+    {
+      name: 'backpropagation',
+      plain: 'An efficient chain-rule procedure that starts at the loss and sends those responsibility signals backward through each calculation.',
+    },
+    {
+      name: 'optimizer',
+      plain: 'The update rule. It uses gradients to nudge the weights toward lower loss. SGD and Adam are two optimizer recipes.',
+    },
+    {
+      name: 'tanh',
+      plain: '“Hyperbolic tangent,” a smooth function that compresses any number into the range −1 to 1. It is not ordinary trigonometric tan.',
+    },
+  ];
+
+  return (
+    <div className="overflow-hidden rounded-xl border bg-surface" style={{ borderColor: `${color}66` }}>
+      <div className="border-b border-line bg-surface-2/60 p-4 sm:p-5">
+        <p className="font-mono text-[11px] font-bold uppercase tracking-wider" style={{ color }}>
+          Start here // the vocabulary this page will use
+        </p>
+        <p className="mt-2 text-[14px] leading-relaxed text-txt-dim">
+          None of these words names magic. Each is a small numerical operation. Read this once, then the training loop below is
+          just these operations connected together.
+        </p>
+      </div>
+
+      <div className="grid gap-px bg-line sm:grid-cols-2">
+        {terms.map((term) => (
+          <div key={term.name} className="bg-surface p-3.5">
+            <code className="font-mono text-[12px] font-bold" style={{ color }}>{term.name}</code>
+            <p className="mt-1.5 text-[12.5px] leading-relaxed text-txt-dim">{term.plain}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="border-t border-line bg-[#0A0A14] p-4 sm:p-5">
+        <p className="font-mono text-[11px] font-bold uppercase tracking-wider text-txt">
+          One prediction with actual numbers
+        </p>
+        <p className="mt-2 text-[13px] leading-relaxed text-txt-dim">
+          Suppose the model has read <code className="text-txt">h</code> and must predict the next character. The real answer in
+          the training text is <code className="text-txt">e</code>.
+        </p>
+        <div className="mt-4 grid gap-2 lg:grid-cols-4">
+          <div className="rounded-lg border border-line bg-void p-3">
+            <div className="font-mono text-[10px] uppercase tracking-wider text-txt-faint">1 · encode input</div>
+            <div className="mt-2 font-mono text-[12px] text-txt">alphabet = [h,e,l,o]</div>
+            <div className="mt-1 font-mono text-[12px]" style={{ color }}>h → [1,0,0,0]</div>
+            <p className="mt-2 text-[11px] leading-relaxed text-txt-faint">That is the one-hot vector for h.</p>
+          </div>
+          <div className="rounded-lg border border-line bg-void p-3">
+            <div className="font-mono text-[10px] uppercase tracking-wider text-txt-faint">2 · raw output</div>
+            <div className="mt-2 font-mono text-[12px] text-txt">logits</div>
+            <div className="mt-1 font-mono text-[12px]" style={{ color }}>[0.2, 2.0, 0.8, −0.4]</div>
+            <p className="mt-2 text-[11px] leading-relaxed text-txt-faint">e has the highest score, but these are not chances yet.</p>
+          </div>
+          <div className="rounded-lg border border-line bg-void p-3">
+            <div className="font-mono text-[10px] uppercase tracking-wider text-txt-faint">3 · softmax</div>
+            <div className="mt-2 space-y-1.5">
+              {probabilities.map((probability, index) => (
+                <div key={PRIMER_LABELS[index]} className="flex items-center gap-2 font-mono text-[10px]">
+                  <span className="w-3 text-txt">{PRIMER_LABELS[index]}</span>
+                  <span className="w-12 text-right text-txt-faint">{(probability * 100).toFixed(1)}%</span>
+                  <span className="h-1.5 rounded-full" style={{ width: `${probability * 70}px`, backgroundColor: color }} />
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] leading-relaxed text-txt-faint">Now they are probabilities and total 100%.</p>
+          </div>
+          <div className="rounded-lg border border-line bg-void p-3">
+            <div className="font-mono text-[10px] uppercase tracking-wider text-txt-faint">4 · score answer</div>
+            <div className="mt-2 font-mono text-[12px] text-txt">real target e → [0,1,0,0]</div>
+            <div className="mt-1 font-mono text-[12px]" style={{ color }}>loss = −ln(0.642) = {loss.toFixed(3)}</div>
+            <p className="mt-2 text-[11px] leading-relaxed text-txt-faint">64.2% on the truth is decent, so the penalty is modest.</p>
+          </div>
+        </div>
+        <div className="mt-3 rounded-lg border border-line bg-void p-3 text-[12.5px] leading-relaxed text-txt-dim">
+          The first backward signal is simply <code className="text-txt">probabilities − target</code>:{' '}
+          <code style={{ color }}>[{outputError.map((value) => value.toFixed(3)).join(', ')}]</code>. The negative entry for e says
+          “raise e&apos;s score”; the positive entries say “lower these competing scores.” Backprop carries that concrete correction
+          into the earlier calculations and their weights.
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function TimelineCard({
@@ -53,8 +180,8 @@ function TimelineCard({
       }}
     >
       <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-txt-faint">
-        <span>same RNN θ</span>
-        <span style={active ? { color } : undefined}>{backward ? '← grad' : 'forward →'}</span>
+        <span>same weights</span>
+        <span style={active ? { color } : undefined}>{backward ? '← correction' : 'forward →'}</span>
       </div>
       <div className="mt-3 flex items-center justify-center gap-3 font-mono">
         <span className="rounded border border-line bg-surface px-2 py-1 text-lg text-txt">{charLabel(input)}</span>
@@ -65,10 +192,10 @@ function TimelineCard({
       </div>
       <div className="mt-3 space-y-1 font-mono text-[10px] leading-relaxed text-txt-faint">
         <div>input: {source}</div>
-        <div>h ← tanh(Wₓₕx + Wₕₕh)</div>
+        <div>new h from input + old h</div>
         <div>
           {backward
-            ? 'accumulate ∂L/∂θ'
+            ? 'add blame to shared weights'
             : training
               ? `score target “${charLabel(target)}”`
               : `sampled “${charLabel(target)}” from p`}
@@ -160,20 +287,20 @@ function LoopTrace({ color }: { color: string }) {
               trainingPhase === 'forward' ? (
                 <p className="text-[13.5px] leading-relaxed text-txt-dim">
                   <span className="font-mono font-bold" style={{ color }}>FORWARD PASS:</span>{' '}
-                  the dataset supplies both the real input and the next-character label. Cache every hidden state and add
-                  <code className="mx-1 text-txt">−log p(target)</code> to the loss.
+                  the dataset supplies both the real input and the real next-character answer. Save each intermediate hidden
+                  state for later, and add this position&apos;s wrongness score to the total loss.
                 </p>
               ) : trainingPhase === 'backward' ? (
                 <p className="text-[13.5px] leading-relaxed text-txt-dim">
                   <span className="font-mono font-bold" style={{ color }}>BACKPROP THROUGH TIME:</span>{' '}
-                  walk the cached computation right-to-left. Each step contributes gradients to the same shared matrices;
-                  future losses also flow through the recurrent connection.
+                  walk the saved calculations right-to-left. Work out how every adjustable weight contributed to the errors,
+                  including errors that arrived through later hidden states.
                 </p>
               ) : (
                 <p className="text-[13.5px] leading-relaxed text-txt-dim">
                   <span className="font-mono font-bold" style={{ color }}>ONE UPDATE:</span>{' '}
-                  sum the gradients from every position, then SGD/Adam nudges θ in the direction that makes all real next
-                  characters more probable. Repeat on many text windows.
+                  add the suggested weight corrections from every position. An optimizer—the update rule—then nudges all
+                  weights toward making the real next characters more probable. Repeat on many text windows.
                 </p>
               )
             ) : (
@@ -243,8 +370,9 @@ function LoopTrace({ color }: { color: string }) {
 
         <div className="rounded-lg border border-line bg-surface/50 p-3 text-[12.5px] leading-relaxed text-txt-dim">
           <strong className="font-mono text-txt">What “replay” means here:</strong> the button merely reruns this animation.
-          During real training, an epoch revisits text windows with updated weights. BPTT does not use a replay buffer: it keeps
-          the forward pass&apos;s intermediate states, then applies the chain rule backward through that recorded computation.
+          During real training, an epoch means one pass over the training data, so later epochs revisit text windows with updated
+          weights. BPTT does not use a special replay buffer: it saves the forward pass&apos;s intermediate numbers, then traces
+          responsibility backward through those recorded calculations.
         </div>
       </div>
     </div>
@@ -275,18 +403,27 @@ function TanhExplorer({ color }: { color: string }) {
             tanh, from the definition—not magic
           </p>
           <div className="mt-3 overflow-x-auto rounded-lg border border-line bg-[#0A0A14] px-3 py-2 text-center">
-            <BlockMath math={'\\tanh(a)=\\frac{e^a-e^{-a}}{e^a+e^{-a}}=2\\,\\sigma(2a)-1'} />
+            <BlockMath math={'\\tanh(a)=\\frac{e^a-e^{-a}}{e^a+e^{-a}}'} />
           </div>
           <div className="mt-3 space-y-2 text-[13.5px] leading-relaxed text-txt-dim">
             <p>
-              This is <strong className="text-txt">hyperbolic tangent</strong>, not the angle function tan. Let
-              <code className="mx-1 text-txt">u=eᵃ</code> and <code className="mx-1 text-txt">v=e⁻ᵃ</code>. Both are positive,
-              so <code className="mx-1 text-txt">|u−v| &lt; u+v</code>. Therefore their ratio must stay strictly between −1 and 1.
+              This is <strong className="text-txt">hyperbolic tangent</strong>, not the angle function tan. “Hyperbolic” is a
+              historical geometry name; to use the function, only the formula matters. The constant e is about 2.718, and eᵃ
+              means raise e to the power a.
             </p>
             <p>
-              RNNs used it because it is smooth, signed, zero-centered, and bounds every hidden-state coordinate. Near zero it is
-              almost linear, so small signals pass through. Its cost is saturation: the derivative
-              <code className="mx-1 text-txt">1−tanh²(a)</code> approaches zero near ±1, which helps cause vanishing gradients.
+              To see the range, rename <code className="mx-1 text-txt">eᵃ</code> as u and
+              <code className="mx-1 text-txt">e⁻ᵃ</code> as v. Both are positive, so the difference
+              <code className="mx-1 text-txt">|u−v|</code> is always smaller than the sum
+              <code className="mx-1 text-txt">u+v</code>. A smaller number divided by a larger positive number must be between −1
+              and 1. At a=0 the numerator is 1−1=0; for huge positive a the ratio approaches +1; for huge negative a it approaches −1.
+            </p>
+            <p>
+              RNNs used tanh because it has no sudden jumps, preserves negative and positive signs, maps zero to zero, and stops
+              each hidden-memory number from growing without bound. Near zero it is almost a straight line. Far from zero it
+              <strong className="text-txt"> saturates</strong>—the output is pinned near ±1. Its derivative, meaning local slope,
+              is <code className="mx-1 text-txt">1−tanh²(a)</code>; that slope approaches zero near ±1, so backward corrections
+              struggle to pass through saturated steps.
             </p>
           </div>
         </div>
@@ -303,7 +440,7 @@ function TanhExplorer({ color }: { color: string }) {
             <text x="4" y="118" fill="#5B6178" fontSize="9" fontFamily="monospace">−1</text>
           </svg>
           <label className="mt-2 block font-mono text-[10px] uppercase tracking-wider text-txt-faint">
-            raw pre-activation a = {input.toFixed(2)}
+            raw input to tanh, a = {input.toFixed(2)}
             <input
               type="range"
               min={-4}
@@ -330,46 +467,120 @@ function TanhExplorer({ color }: { color: string }) {
 }
 
 function GradientDerivation({ color }: { color: string }) {
+  const plainSteps = [
+    {
+      title: 'Compare prediction with truth',
+      body: 'At each character, subtract the one-hot real answer from the predicted probabilities. This says which output scores were too high or too low.',
+    },
+    {
+      title: 'Assign responsibility to the output weights',
+      body: 'Ask which connections from hidden state h produced those output scores. Each connection receives a correction proportional to the hidden value that flowed through it.',
+    },
+    {
+      title: 'Send responsibility into hidden state h',
+      body: 'The output error is sent backward through the output-weight table. Now we know which hidden-state numbers should have been a little higher or lower.',
+    },
+    {
+      title: 'Undo the local tanh step',
+      body: 'Multiply by tanh’s local slope. If tanh was near ±1, its slope is near zero, so very little correction gets through—this is the seed of vanishing gradients.',
+    },
+    {
+      title: 'Continue into the previous timestep',
+      body: 'Because h_t depended on h_(t−1), part of the correction travels through the recurrent weights into the prior hidden state. Repeat right-to-left until the start of the text window.',
+    },
+    {
+      title: 'Add corrections, then update once',
+      body: 'Every position used the same weight tables, so add all their suggested corrections together. The optimizer then makes one small weight update intended to lower the total loss.',
+    },
+  ];
+
   return (
     <div className="rounded-xl border border-line bg-surface p-4 sm:p-5">
       <p className="font-mono text-[11px] font-bold uppercase tracking-wider" style={{ color }}>
-        The exact backward pass // BPTT
+        How learning moves backward // BPTT in plain English
       </p>
       <p className="mt-3 text-[13.5px] leading-relaxed text-txt-dim">
-        Let V be alphabet size and H hidden size. Then x∈ℝⱽ, h∈ℝᴴ, Wₓₕ∈ℝᴴˣⱽ,
-        Wₕₕ∈ℝᴴˣᴴ, and Wₕᵧ∈ℝⱽˣᴴ. Start at the final position and run these equations for
-        <code className="mx-1 text-txt">t = L−1 … 0</code>:
+        “Backpropagation through time” is ordinary backpropagation applied to the RNN&apos;s recorded sequence of calculations.
+        It answers one question: <strong className="text-txt">which adjustable weights contributed to the prediction error, and
+        in which direction should each move?</strong>
       </p>
-      <div className="mt-3 overflow-x-auto rounded-lg border border-line bg-[#0A0A14] px-3 py-2 text-center">
-        <BlockMath
-          math={
-            '\\begin{aligned}' +
-            '\\delta^z_t &= p_t-\\operatorname{onehot}(y_t) \\\\' +
-            '\\delta^h_t &= W_{hy}^{\\top}\\delta^z_t + W_{hh}^{\\top}\\delta^a_{t+1} \\\\' +
-            '\\delta^a_t &= \\delta^h_t \\odot (1-h_t\\odot h_t) \\\\' +
-            '\\nabla W_{hy} &\\mathrel{+}= \\delta^z_t h_t^{\\top} \\\\' +
-            '\\nabla W_{xh} &\\mathrel{+}= \\delta^a_t x_t^{\\top} \\\\' +
-            '\\nabla W_{hh} &\\mathrel{+}= \\delta^a_t h_{t-1}^{\\top}' +
-            '\\end{aligned}'
-          }
-        />
+
+      <ol className="mt-4 grid gap-2 sm:grid-cols-2">
+        {plainSteps.map((step, index) => (
+          <li key={step.title} className="rounded-lg border border-line bg-void p-3">
+            <div className="font-mono text-[11px] font-bold" style={{ color }}>
+              {index + 1} · {step.title}
+            </div>
+            <p className="mt-1.5 text-[12.5px] leading-relaxed text-txt-dim">{step.body}</p>
+          </li>
+        ))}
+      </ol>
+
+      <div className="mt-4 rounded-lg border border-line bg-[#0A0A14] p-3 text-[12.5px] leading-relaxed text-txt-dim">
+        <strong className="font-mono text-txt">Why start at the end?</strong> A loss is produced after a forward calculation.
+        To find causes, follow that calculation&apos;s arrows in reverse: output → hidden state → previous hidden state. “Through
+        time” just means the reverse walk crosses the hₜ₋₁ → hₜ connection repeatedly.
       </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border border-line bg-void p-3 text-[12.5px] leading-relaxed text-txt-dim">
-          <strong className="font-mono text-txt">Where the first line comes from:</strong> softmax plus cross-entropy has the
-          clean derivative <code className="text-txt">prediction − target</code>. An over-predicted character gets a positive
-          gradient; the real character gets a negative one, so gradient descent raises its relative logit.
+
+      <details className="group mt-4 rounded-lg border border-line bg-surface-2/40">
+        <summary className="cursor-pointer px-4 py-3 font-mono text-[11px] font-bold uppercase tracking-wider text-txt-dim hover:text-txt">
+          Optional advanced math · show the equations and every symbol
+        </summary>
+        <div className="space-y-4 border-t border-line p-4">
+          <p className="text-[12.5px] leading-relaxed text-txt-dim">
+            You can safely skip this block. It is the compact notation for the six plain-English steps above—not an additional
+            mechanism. Read the symbol key first.
+          </p>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[
+              ['t', 'Which character position we are processing.'],
+              ['δ (delta)', 'An error signal: how the loss changes when an intermediate number changes.'],
+              ['G', 'A gradient accumulator: a table where we add suggested changes for every weight.'],
+              ['⊙', 'Element-by-element multiply: first number with first, second with second, and so on.'],
+              ['ᵀ (transpose)', 'Flip a table’s rows and columns so a forward mapping can carry an error backward.'],
+              ['←', 'Replace the value on the left with the newly calculated value on the right.'],
+              ['onehot(y)', 'A vector with 1 at the real answer’s position and 0 everywhere else.'],
+              ['1−h²', 'The local slope of tanh, calculated separately for every hidden-state coordinate.'],
+            ].map(([symbol, meaning]) => (
+              <div key={symbol} className="flex gap-2 rounded border border-line bg-void p-2.5">
+                <code className="shrink-0 font-mono text-[11px]" style={{ color }}>{symbol}</code>
+                <span className="text-[11.5px] leading-relaxed text-txt-dim">{meaning}</span>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-[12.5px] leading-relaxed text-txt-dim">
+            V is the number of possible characters and H is the number of hidden-memory slots. A notation such as
+            <code className="mx-1 text-txt">Wₓₕ: H × V</code> only states the table size: H rows by V columns.
+          </p>
+
+          <div className="space-y-2 overflow-x-auto rounded-lg border border-line bg-[#0A0A14] px-3 py-3 text-center">
+            <BlockMath math={'\\delta^z_t=p_t-\\operatorname{onehot}(y_t)'} />
+            <p className="text-left text-[11.5px] text-txt-faint">Output error = predicted probabilities − real-answer vector.</p>
+            <BlockMath math={'\\delta^h_t=W_{hy}^{\\top}\\delta^z_t+W_{hh}^{\\top}\\delta^a_{t+1}'} />
+            <p className="text-left text-[11.5px] text-txt-faint">Hidden error = current output error + error arriving from the next timestep.</p>
+            <BlockMath math={'\\delta^a_t=\\delta^h_t\\odot(1-h_t\\odot h_t)'} />
+            <p className="text-left text-[11.5px] text-txt-faint">Pass that error through tanh&apos;s local slope.</p>
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border border-line bg-[#0A0A14] px-3 py-3 text-center">
+            <BlockMath
+              math={
+                '\\begin{aligned}' +
+                'G_{hy}&\\leftarrow G_{hy}+\\delta^z_t h_t^{\\top}, & G_{b_y}&\\leftarrow G_{b_y}+\\delta^z_t \\\\' +
+                'G_{xh}&\\leftarrow G_{xh}+\\delta^a_t x_t^{\\top}, & G_{b_h}&\\leftarrow G_{b_h}+\\delta^a_t \\\\' +
+                'G_{hh}&\\leftarrow G_{hh}+\\delta^a_t h_{t-1}^{\\top}' +
+                '\\end{aligned}'
+              }
+            />
+            <p className="text-left text-[11.5px] leading-relaxed text-txt-faint">
+              Add this timestep&apos;s suggested changes to the shared weight and bias accumulators. After all timesteps, the
+              simplest optimizer update is <code className="text-txt">weight ← weight − learning_rate × G</code>.
+            </p>
+          </div>
         </div>
-        <div className="rounded-lg border border-line bg-void p-3 text-[12.5px] leading-relaxed text-txt-dim">
-          <strong className="font-mono text-txt">Where “through time” appears:</strong> δʰₜ contains both the current output
-          error and <code className="text-txt">Wₕₕᵀδᵃₜ₊₁</code>, the error arriving from the future. That recursive term is the
-          chain rule crossing the recurrent edge.
-        </div>
-      </div>
-      <p className="mt-3 border-t border-line pt-3 font-mono text-[11px] leading-relaxed text-txt-faint">
-        “+=” matters: every timestep used the same matrices, so every timestep contributes to their gradients. After the loop,
-        an optimizer applies θ ← θ − η∇θL (or Adam&apos;s scaled version). That weight update is the actual learning.
-      </p>
+      </details>
     </div>
   );
 }
@@ -386,9 +597,14 @@ function TemperatureExplorer({ color }: { color: string }) {
             temperature changes selection, not learning
           </p>
           <p className="mt-2 text-[13.5px] leading-relaxed text-txt-dim">
-            The output layer produces raw scores called logits. Divide those scores by T, then softmax. T&lt;1 magnifies score
-            gaps; T&gt;1 shrinks them. The weights and ranking do not change—only how concentrated the sampling probabilities are.
+            The output layer produces logits: raw preference scores that may be any number and need not total anything. Softmax
+            exponentiates each score, making it positive, then divides by the sum so the results total 1 (100%). Temperature T
+            rescales the logits first: T&lt;1 magnifies score gaps; T&gt;1 shrinks them. The learned weights and score ranking do not
+            change—only how concentrated the sampling probabilities are.
           </p>
+          <div className="mt-3 overflow-x-auto rounded border border-line bg-[#0A0A14] px-2 py-1 text-center text-[12px]">
+            <BlockMath math={'p_i=\\frac{e^{z_i/T}}{\\sum_j e^{z_j/T}}'} />
+          </div>
         </div>
         <label className="block w-full max-w-[260px] font-mono text-[10px] uppercase tracking-wider text-txt-faint">
           temperature T = {temperature.toFixed(2)}
@@ -435,29 +651,38 @@ function TemperatureExplorer({ color }: { color: string }) {
 export default function CharRnnDeepDive({ color }: { color: string }) {
   return (
     <div className="space-y-6 pt-4">
+      <VocabularyPrimer color={color} />
+
       <div className="rounded-xl border border-line bg-surface p-4 sm:p-5">
         <p className="font-mono text-[11px] font-bold uppercase tracking-wider" style={{ color }}>
-          Exact objective // what training is trying to achieve
+          The goal and scoring rule // what training is trying to achieve
         </p>
         <p className="mt-3 text-[14px] leading-relaxed text-txt-dim">
-          Given real text <code className="text-txt">c₀,c₁,…,cₙ</code>, learn one shared set of weights θ that assigns high
-          probability to every real next character. The chain rule of probability turns the probability of the whole string into
-          next-character terms:
+          Given real text <code className="text-txt">c₀,c₁,…,cₙ</code>, adjust one shared set of weights so it assigns high
+          probability to every real next character. In the equation below, P means “probability,” the vertical bar means “given,”
+          and θ is just a short name for all the model&apos;s adjustable weights. The chance of a whole string can be written as the
+          product of its next-character chances:
         </p>
         <div className="mt-3 overflow-x-auto rounded-lg border border-line bg-[#0A0A14] px-3 py-2 text-center">
           <BlockMath math={'P_\\theta(c_1,\\ldots,c_n\\mid c_0)=\\prod_{t=0}^{n-1}P_\\theta(c_{t+1}\\mid c_0,\\ldots,c_t)'} />
           <BlockMath math={'\\mathcal L(\\theta)=-\\sum_{t=0}^{n-1}\\log p_t[c_{t+1}]'} />
         </div>
         <p className="mt-3 text-[13.5px] leading-relaxed text-txt-dim">
-          Minimizing this negative log-likelihood is equivalent to maximizing the probability assigned to the training text.
-          Teacher forcing is simply the efficient way to evaluate every factor above using the known real prefix. It is not a
-          separate learning rule and it does not reveal the answer before the prediction—the target is used only to score the
-          prediction and compute a gradient.
+          The second line defines the total loss. For each real next character, look up the probability the model assigned to it;
+          <code className="mx-1 text-txt">−log(probability)</code> turns a confident correct prediction into a small penalty and a
+          low-probability correct answer into a large penalty. Add those penalties across the text window. “Negative
+          log-likelihood” is simply the standard name for this score.
+        </p>
+        <p className="mt-2 text-[13.5px] leading-relaxed text-txt-dim">
+          Teacher forcing is the efficient way to calculate every prediction using the known real prefix. It does not reveal the
+          answer before the prediction: the real next character is used afterward to score the prediction and calculate weight
+          corrections.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div className="rounded-lg border border-line bg-void p-3 text-[12.5px] leading-relaxed text-txt-dim">
             <strong className="font-mono text-txt">What h actually does:</strong> because x is one-hot,
-            <code className="mx-1 text-txt">Wₓₕx</code> selects a learned column for the current character.
+            <code className="mx-1 text-txt">Wₓₕx</code> selects a learned column for the current character. W is conventional
+            shorthand for a weight matrix.
             <code className="mx-1 text-txt">Wₕₕhₜ₋₁</code> mixes the old memory. Add them, add a bias, apply tanh to each
             coordinate, and that resulting vector becomes hₜ for the next step.
           </div>
@@ -471,9 +696,9 @@ export default function CharRnnDeepDive({ color }: { color: string }) {
       </div>
 
       <LoopTrace color={color} />
-      <GradientDerivation color={color} />
       <TanhExplorer color={color} />
       <TemperatureExplorer color={color} />
+      <GradientDerivation color={color} />
 
       <div className="rounded-xl border border-line bg-[#0A0A14] p-4 sm:p-5">
         <p className="font-mono text-[11px] font-bold uppercase tracking-wider" style={{ color }}>
@@ -481,9 +706,9 @@ export default function CharRnnDeepDive({ color }: { color: string }) {
         </p>
         <ol className="mt-3 space-y-3 text-[13.5px] leading-relaxed text-txt-dim">
           <li><strong className="font-mono text-txt">1 · A local signal exists.</strong> Every character supplies a label for the previous prefix, so one text window provides many supervised examples.</li>
-          <li><strong className="font-mono text-txt">2 · Parameters are shared through time.</strong> The same matrices process every position, so a useful pattern learned anywhere—quotes, indentation, spelling—can apply everywhere.</li>
-          <li><strong className="font-mono text-txt">3 · The hidden state makes the prediction conditional.</strong> hₜ is a learned summary of the prefix, allowing the same input character to imply different next characters in different contexts.</li>
-          <li><strong className="font-mono text-txt">4 · The computation is differentiable.</strong> tanh, matrix multiplication, softmax, and cross-entropy all have derivatives, so BPTT can assign credit to weights that influenced later predictions.</li>
+          <li><strong className="font-mono text-txt">2 · Weights are shared through time.</strong> The same weight tables process every position, so a useful pattern learned anywhere—quotes, indentation, spelling—can apply everywhere.</li>
+          <li><strong className="font-mono text-txt">3 · Hidden state makes predictions depend on context.</strong> hₜ is a learned summary of the prefix, allowing the same input character to imply different next characters in different contexts.</li>
+          <li><strong className="font-mono text-txt">4 · Every operation has a usable local slope.</strong> Matrix multiplication, tanh, softmax, and the loss can each report how a small input change affects their output. Backprop connects those slopes to assign responsibility to earlier weights.</li>
           <li><strong className="font-mono text-txt">5 · Generation uses the learned conditionals.</strong> Repeated sampling approximately draws a new sequence from the product of next-character distributions the model learned.</li>
         </ol>
         <p className="mt-4 border-t border-line pt-3 font-mono text-[11px] leading-relaxed text-txt-faint">

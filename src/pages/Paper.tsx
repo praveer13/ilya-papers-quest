@@ -221,8 +221,8 @@ export default function Paper() {
                 {content.eliEngineer.prose.map((p, i) => (
                   <p key={i} className="text-[16.5px] leading-[1.75] text-txt-dim">{p}</p>
                 ))}
-                <CodeBlock code={content.eliEngineer.code.snippet} lang={content.eliEngineer.code.lang} file={content.eliEngineer.code.file} />
                 {meta.slug === 'char-rnn' && <CharRnnDeepDive color={color} />}
+                <CodeBlock code={content.eliEngineer.code.snippet} lang={content.eliEngineer.code.lang} file={content.eliEngineer.code.file} />
               </div>
             </LevelSection>
 
