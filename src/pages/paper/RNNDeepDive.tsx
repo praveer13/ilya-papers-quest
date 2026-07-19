@@ -77,7 +77,7 @@ function FormulaLine({ children, highlight = false }: { children: React.ReactNod
 /* scene 1: what is h?                                                */
 /* ------------------------------------------------------------------ */
 
-function SceneHiddenState(_props: { step: StepIdx }) {
+function SceneHiddenState() {
   const [t, setT] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -136,7 +136,7 @@ function SceneHiddenState(_props: { step: StepIdx }) {
 /* scene 2: the update equation                                       */
 /* ------------------------------------------------------------------ */
 
-function SceneEquation(_props: { step: StepIdx }) {
+function SceneEquation() {
   const [phase, setPhase] = useState(0);
   const phases = ['input', 'recurrent', 'sum', 'tanh', 'output'];
 
@@ -208,7 +208,7 @@ function SceneEquation(_props: { step: StepIdx }) {
 /* scene 3: teacher forcing                                           */
 /* ------------------------------------------------------------------ */
 
-function SceneTeacherForcing(_props: { step: StepIdx }) {
+function SceneTeacherForcing() {
   const [pos, setPos] = useState(0);
   const text = 'hello';
   const targets = 'ello<';
@@ -310,7 +310,7 @@ function SceneTeacherForcing(_props: { step: StepIdx }) {
 /* scene 4: autoregressive generation                                 */
 /* ------------------------------------------------------------------ */
 
-function SceneGeneration(_props: { step: StepIdx }) {
+function SceneGeneration() {
   const [generated, setGenerated] = useState<string[]>(['h']);
   const [isRunning, setIsRunning] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -416,7 +416,7 @@ function SceneGeneration(_props: { step: StepIdx }) {
 /* scene 5: why tanh?                                                 */
 /* ------------------------------------------------------------------ */
 
-function SceneTanh(_props: { step: StepIdx }) {
+function SceneTanh() {
   const [inputVal, setInputVal] = useState(0);
 
   const tanh = (x: number) => Math.tanh(x);
@@ -526,7 +526,7 @@ function SceneTanh(_props: { step: StepIdx }) {
 /* scene 6: the full picture                                          */
 /* ------------------------------------------------------------------ */
 
-function SceneFullPicture(_props: { step: StepIdx }) {
+function SceneFullPicture() {
   return (
     <div className="space-y-6">
       <p className="text-[15px] leading-relaxed text-txt-dim">
@@ -651,7 +651,7 @@ export default function RNNDeepDive({ color }: { color: string }) {
           exit={reduced ? undefined : { opacity: 0, y: -8 }}
           transition={{ duration: 0.3 }}
         >
-          <Scene step={step} />
+          <Scene />
         </motion.div>
       </AnimatePresence>
 
